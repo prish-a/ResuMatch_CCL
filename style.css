@@ -1,0 +1,4 @@
+body { background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%); }
+.stButton>button { border-radius: 10px !important; padding: 0.75rem 2rem !important; }
+.stTextArea>textarea, .stTextInput>input { border-radius: 10px !important; padding: 1rem !important; }
+.card-custom {background: #232634 !important; padding: 1rem; margin-bottom: 1rem; color: #fff;}
