@@ -16,8 +16,7 @@ from nltk.corpus import stopwords
 nltk.download("punkt", quiet=True)
 nltk.download("stopwords", quiet=True)
 
-# --- Streamlit Config MUST BE FIRST ---
-st.set_page_config(page_title="ResuMatch Pro", layout="wide")
+st.set_page_config(page_title="ResuMatch A CCL Project", layout="wide")
 
 # --- AWS Configuration ---
 s3 = boto3.client("s3")
@@ -26,21 +25,21 @@ lambda_client = boto3.client("lambda")
 dynamodb = boto3.resource("dynamodb")
 
 # --- Free Tier Configuration ---
-MAX_TEXTRACT_PAGES = 1000  # Free Tier: 1000 pages/month
-MAX_LAMBDA_INVOCATIONS = 1000000  # Free Tier: 1M requests/month
-MAX_S3_SIZE_GB = 5  # Free Tier: 5GB storage
-MAX_DYNAMODB_RCU = 25  # Free Tier: 25 Read Capacity Units
+MAX_TEXTRACT_PAGES = 1000
+MAX_LAMBDA_INVOCATIONS = 1000000
+MAX_S3_SIZE_GB = 5
+MAX_DYNAMODB_RCU = 25
 
-BUCKET_NAME = "resumatch-bucket"
+BUCKET_NAME = "resumatch-bucket1"
 TABLE_NAME = "ResuMatch-Resumes"
 LAMBDA_FUNCTION_NAME = "ResuMatch-Processor"
 
-# --- Initialize Services with Free Tier Protections ---
+
 try:
     table = dynamodb.create_table(
         TableName=TABLE_NAME,
-        KeySchema=[{"AttributeName": "filename", "KeyType": "HASH"}],
-        AttributeDefinitions=[{"AttributeName": "filename", "AttributeType": "S"}],
+        KeySchema=[{"AttributeName": "resume_id", "KeyType": "HASH"}],
+        AttributeDefinitions=[{"AttributeName": "resume_id", "AttributeType": "S"}],
         BillingMode="PROVISIONED",
         ProvisionedThroughput={"ReadCapacityUnits": 5, "WriteCapacityUnits": 5},
     )
@@ -48,7 +47,7 @@ try:
 except dynamodb.meta.client.exceptions.ResourceInUseException:
     table = dynamodb.Table(TABLE_NAME)
 
-# --- Global State for Free Tier Tracking ---
+
 if "textract_usage" not in st.session_state:
     st.session_state.textract_usage = 0
 if "lambda_usage" not in st.session_state:
@@ -56,7 +55,7 @@ if "lambda_usage" not in st.session_state:
 if "s3_usage" not in st.session_state:
     st.session_state.s3_usage = 0.0
 
-# --- Common Skills List ---
+
 COMMON_SKILLS = [
     "python",
     "java",
@@ -105,7 +104,7 @@ COMMON_SKILLS = [
 ]
 
 
-# --- Text Processing Functions ---
+# Text Processing Functions
 def preprocess_text(text):
     text = text.lower()
     text = re.sub(r"[^a-zA-Z\s]", " ", text)
@@ -153,7 +152,6 @@ def extract_text(file_content, file_type):
         return ""
 
 
-# --- Free Tier Protected Processing ---
 def trigger_lambda_processing(file_name):
     if st.session_state.lambda_usage >= MAX_LAMBDA_INVOCATIONS:
         st.error("Lambda free tier limit reached!")
@@ -172,26 +170,23 @@ def trigger_lambda_processing(file_name):
         return False
 
 
-# --- Enhanced Matching Engine ---
 def match_resumes(job_desc):
     try:
         job_clean = preprocess_text(job_desc)
         resumes = []
 
-        # Get from DynamoDB first
         db_items = table.scan(Limit=MAX_DYNAMODB_RCU).get("Items", [])
         for item in db_items:
             if text := item.get("text"):
                 resumes.append(
                     (
-                        item["filename"],
+                        item["resume_id"],
                         text,
                         item.get("skills", []),
                         item.get("sections", {}),
                     )
                 )
 
-        # Fallback to S3 if DynamoDB empty
         if not resumes:
             s3_objects = s3.list_objects_v2(Bucket=BUCKET_NAME).get("Contents", [])
             for obj in s3_objects[:25]:  # Limit to Free Tier reads
@@ -228,22 +223,6 @@ def match_resumes(job_desc):
 
 
 # --- UI Components ---
-def free_tier_sidebar():
-    st.sidebar.subheader("Free Tier Usage")
-    st.sidebar.progress(
-        st.session_state.textract_usage / MAX_TEXTRACT_PAGES,
-        text=f"Textract: {st.session_state.textract_usage}/{MAX_TEXTRACT_PAGES}",
-    )
-    st.sidebar.progress(
-        st.session_state.lambda_usage / MAX_LAMBDA_INVOCATIONS,
-        text=f"Lambda: {st.session_state.lambda_usage}/{MAX_LAMBDA_INVOCATIONS}",
-    )
-    st.sidebar.progress(
-        st.session_state.s3_usage / MAX_S3_SIZE_GB,
-        text=f"S3: {st.session_state.s3_usage:.2f}GB/{MAX_S3_SIZE_GB}GB",
-    )
-
-
 def main():
     # Authentication
     if "auth" not in st.session_state:
@@ -252,7 +231,6 @@ def main():
     if not st.session_state.auth["logged_in"]:
         render_login()
     else:
-        free_tier_sidebar()
         render_dashboard()
 
 
